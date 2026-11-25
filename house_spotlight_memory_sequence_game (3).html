@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>House Spotlight &amp; Memory Sequence — Smartboard ESL</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Kid-Friendly Rounded Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['Fredoka', 'sans-serif'],
+            sans: ['Nunito', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* =====================================================================
+       SMARTBOARD VIEWPORT LOCK & INTERACTION SAFEGUARDS
+       ===================================================================== */
+    html, body {
+      width: 100vw;
+      height: 100dvh;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #f4f6f9;
+      font-family: 'Nunito', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    .font-display {
+      font-family: 'Fredoka', sans-serif;
+    }
+
+    /* Tactile Smartboard buttons */
+    .btn-tap {
+      transition: transform 0.1s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .btn-tap:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    /* Glowing golden pulse for active lit room border */
+    @keyframes spotlightPulse {
+      0%, 100% {
+        stroke-width: 0.9;
+        filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.95));
+      }
+      50% {
+        stroke-width: 1.4;
+        filter: drop-shadow(0 0 14px rgba(251, 191, 36, 1));
+      }
+    }
+    .active-room-glow {
+      animation: spotlightPulse 1.3s ease-in-out infinite;
+    }
+
+    /* Brief red flash hint border on wrong click */
+    @keyframes hintFlash {
+      0%, 100% { opacity: 0.95; }
+      50% { opacity: 0.25; }
+    }
+    .hint-room-flash {
+      animation: hintFlash 0.35s ease-in-out infinite;
+    }
+
+    /* Gentle shake on wrong click */
+    @keyframes gentleShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+    .animate-shake {
+      animation: gentleShake 0.4s ease-in-out;
+    }
+
+    /* Word pop animation */
+    @keyframes wordPop {
+      0% { transform: scale(0.86); opacity: 0.6; }
+      60% { transform: scale(1.06); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-word-pop {
+      animation: wordPop 0.24s ease-out;
+    }
+
+    /* Capybara smooth glide & squash-and-stretch hop */
+    #character-sprite {
+      pointer-events: none !important;
+      transition: left 0.48s cubic-bezier(0.34, 1.38, 0.64, 1),
+                  top 0.48s cubic-bezier(0.34, 1.38, 0.64, 1),
+                  opacity 0.2s ease;
+    }
+
+    @keyframes capybaraHop {
+      0% { transform: translate(-50%, -50%) scale(1, 1); }
+      18% { transform: translate(-50%, -44%) scale(1.1, 0.9); }
+      48% { transform: translate(-50%, -78%) scale(0.93, 1.1); }
+      76% { transform: translate(-50%, -44%) scale(1.06, 0.94); }
+      100% { transform: translate(-50%, -50%) scale(1, 1); }
+    }
+    .character-hopping {
+      animation: capybaraHop 0.5s ease-out;
+    }
+
+    /* Interactive room hitbox polygons (always top layer & clickable) */
+    .room-hitbox {
+      pointer-events: auto;
+      cursor: pointer;
+      transition: fill 0.14s ease, stroke 0.14s ease;
+    }
+    .room-hitbox:hover {
+      fill: rgba(251, 191, 36, 0.18);
+      stroke: rgba(251, 191, 36, 0.85);
+      stroke-width: 0.55;
+    }
+
+    /* Slide-over Settings Drawer animation */
+    #settings-drawer {
+      transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #settings-drawer.drawer-closed {
+      transform: translateX(100%);
+    }
+
+    /* Subtle scrollbar for sequence rail & modal room list only */
+    .thin-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .thin-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .thin-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body class="w-screen h-[100dvh] overflow-hidden flex flex-col text-slate-800">
+
+  <!-- =======================================================================
+       1. MINIMAL TOP HEADER (Max 64px tall, clean white bar)
+       ======================================================================= -->
+  <header class="h-16 shrink-0 bg-white border-b border-slate-200/90 shadow-sm px-3 sm:px-5 flex items-center justify-between gap-3 z-30">
+
+    <!-- LEFT: Compact Segmented Mode Pill Toggle -->
+    <div class="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shrink-0">
+      <button id="tab-memory" type="button" data-mode="memory"
+        class="mode-tab btn-tap px-3.5 sm:px-4 py-1.5 rounded-xl font-display font-bold text-sm sm:text-base transition-all bg-sky-500 text-white shadow-sm">
+        🧠 Memory
+      </button>
+      <button id="tab-spotlight" type="button" data-mode="spotlight"
+        class="mode-tab btn-tap px-3.5 sm:px-4 py-1.5 rounded-xl font-display font-bold text-sm sm:text-base transition-all text-slate-600 hover:text-slate-900">
+        🔦 Spotlight
+      </button>
+    </div>
+
+    <!-- CENTER: Prominent Ultra-Legible Status & Word Banner -->
+    <div class="flex-1 min-w-0 flex items-center justify-center gap-2.5 sm:gap-3">
+      <span id="phase-badge"
+        class="hidden md:inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-sky-100 text-sky-700 whitespace-nowrap shrink-0">
+        Ready
+      </span>
+
+      <h1 id="banner-word"
+        class="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-wider text-slate-900 uppercase truncate leading-none">
+        PRESS START
+      </h1>
+
+      <button id="btn-header-speak" type="button" disabled
+        class="btn-tap w-10 h-10 rounded-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center shadow-sm shrink-0"
+        title="Speak Word (0.85x speed)">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- RIGHT: Primary Action, Replay, Fullscreen & Settings Gear -->
+    <div class="flex items-center gap-2 shrink-0">
+      <!-- Primary Start / Restart Button (Memory Mode) -->
+      <button id="btn-start" type="button"
+        class="btn-tap px-4 sm:px-5 py-2 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-display font-bold text-sm sm:text-base shadow-sm border-b-[3px] border-emerald-700 flex items-center gap-1.5">
+        <span id="btn-start-icon">▶</span>
+        <span id="btn-start-label">Start</span>
+      </button>
+
+      <!-- Replay Sequence Icon Button (Memory Mode only) -->
+      <button id="btn-replay" type="button" disabled
+        class="btn-tap w-10 h-10 rounded-2xl bg-amber-400 hover:bg-amber-500 disabled:opacity-35 disabled:cursor-not-allowed text-slate-900 flex items-center justify-center shadow-sm border-b-[3px] border-amber-600"
+        title="Replay Sequence">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.49 9A9 9 0 005.64 5.64L4 7m16 10l-1.64 1.36A9 9 0 013.51 15" />
+        </svg>
+      </button>
+
+      <!-- Fullscreen Toggle -->
+      <button id="btn-fullscreen" type="button"
+        class="btn-tap w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center"
+        title="Toggle Fullscreen">
+        <svg id="icon-fs-enter" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
+        </svg>
+        <svg id="icon-fs-exit" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 4v4H4M16 4v4h4M8 20v-4H4M16 20v-4h4" />
+        </svg>
+      </button>
+
+      <!-- Single Settings Gear Button -->
+      <button id="btn-open-settings" type="button"
+        class="btn-tap w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 flex items-center justify-center"
+        title="Classroom Settings &amp; Floorplan">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- =======================================================================
+       2. MAIN WORKSPACE (Hero House Stage + Compact Memory Rail)
+       ======================================================================= -->
+  <main class="flex-1 min-h-0 w-full flex items-stretch gap-3 p-3 overflow-hidden relative">
+
+    <!-- HERO HOUSE STAGE WRAPPER (Takes 80%+ of screen area) -->
+    <section id="stage-wrapper"
+      class="flex-1 min-w-0 min-h-0 flex items-center justify-center relative">
+
+      <!-- Exact Aspect-Ratio Locked House Frame -->
+      <div id="house-stage"
+        class="relative rounded-3xl overflow-hidden shadow-xl ring-2 ring-slate-200/90 bg-sky-100 select-none">
+
+        <!-- LAYER 1A: Built-In 5-Room Illustrated House Cutaway SVG -->
+        <svg id="default-house-svg" viewBox="0 0 1000 680" class="w-full h-full block pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#bae6fd" />
+              <stop offset="100%" stop-color="#e0f2fe" />
+            </linearGradient>
+            <linearGradient id="roofGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ef4444" />
+              <stop offset="100%" stop-color="#b91c1c" />
+            </linearGradient>
+            <linearGradient id="grassGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4ade80" />
+              <stop offset="100%" stop-color="#16a34a" />
+            </linearGradient>
+          </defs>
+
+          <!-- Sky, Sun & Clouds -->
+          <rect x="0" y="0" width="1000" height="680" fill="url(#skyGrad)" />
+          <circle cx="920" cy="68" r="38" fill="#fde047" />
+          <circle cx="920" cy="68" r="50" fill="#fde047" opacity="0.25" />
+          <g fill="#ffffff" opacity="0.92">
+            <ellipse cx="110" cy="70" rx="45" ry="20" />
+            <circle cx="95" cy="60" r="22" />
+            <circle cx="128" cy="62" r="18" />
+            <ellipse cx="770" cy="58" rx="38" ry="16" />
+            <circle cx="760" cy="50" r="18" />
+            <circle cx="785" cy="52" r="15" />
+          </g>
+
+          <!-- Grass & Bushes -->
+          <rect x="0" y="610" width="1000" height="70" fill="url(#grassGrad)" />
+          <circle cx="42" cy="610" r="28" fill="#22c55e" />
+          <circle cx="62" cy="615" r="20" fill="#16a34a" />
+          <circle cx="958" cy="610" r="28" fill="#22c55e" />
+          <circle cx="938" cy="615" r="20" fill="#16a34a" />
+
+          <!-- Chimney & Warm Pitched Roof -->
+          <rect x="750" y="42" width="52" height="90" rx="4" fill="#9a3412" stroke="#7c2d12" stroke-width="3" />
+          <rect x="744" y="36" width="64" height="14" rx="4" fill="#7c2d12" />
+          <polygon points="40,150 500,22 960,150" fill="url(#roofGrad)" stroke="#7f1d1d" stroke-width="6" stroke-linejoin="round" />
+          <circle cx="500" cy="96" r="24" fill="#fef08a" stroke="#7f1d1d" stroke-width="5" />
+          <line x1="500" y1="72" x2="500" y2="120" stroke="#7f1d1d" stroke-width="3" />
+          <line x1="476" y1="96" x2="524" y2="96" stroke="#7f1d1d" stroke-width="3" />
+
+          <!-- Outer House Timber Frame -->
+          <rect x="70" y="142" width="860" height="476" rx="8" fill="#78350f" stroke="#451a03" stroke-width="6" />
+
+          <!-- 1. BEDROOM (Top-Left: x=80..498, y=150..375) -->
+          <g id="art-bedroom">
+            <rect x="80" y="150" width="418" height="225" fill="#ede9fe" />
+            <rect x="80" y="348" width="418" height="27" fill="#d6b48c" />
+            <g stroke="#ddd6fe" stroke-width="4" opacity="0.7">
+              <line x1="125" y1="150" x2="125" y2="348" />
+              <line x1="185" y1="150" x2="185" y2="348" />
+              <line x1="245" y1="150" x2="245" y2="348" />
+              <line x1="305" y1="150" x2="305" y2="348" />
+              <line x1="365" y1="150" x2="365" y2="348" />
+              <line x1="425" y1="150" x2="425" y2="348" />
+            </g>
+            <!-- Window with Curtains -->
+            <rect x="360" y="180" width="96" height="86" rx="6" fill="#bae6fd" stroke="#7c3aed" stroke-width="5" />
+            <line x1="408" y1="180" x2="408" y2="266" stroke="#7c3aed" stroke-width="4" />
+            <line x1="360" y1="223" x2="456" y2="223" stroke="#7c3aed" stroke-width="4" />
+            <path d="M352,175 Q372,220 358,272 L348,272 L348,175 Z" fill="#a78bfa" />
+            <path d="M464,175 Q444,220 458,272 L468,272 L468,175 Z" fill="#a78bfa" />
+            <!-- Star Picture -->
+            <rect x="190" y="182" width="56" height="46" rx="4" fill="#fef3c7" stroke="#b45309" stroke-width="4" />
+            <polygon points="218,191 222,202 234,202 224,209 228,220 218,213 208,220 212,209 202,202 214,202" fill="#f59e0b" />
+            <!-- Rug -->
+            <ellipse cx="290" cy="362" rx="95" ry="10" fill="#c4b5fd" stroke="#8b5cf6" stroke-width="2" />
+            <!-- Nightstand & Lamp -->
+            <rect x="96" y="295" width="56" height="58" rx="5" fill="#b45309" stroke="#78350f" stroke-width="3" />
+            <rect x="104" y="305" width="40" height="16" rx="2" fill="#d97706" />
+            <circle cx="124" cy="313" r="3" fill="#fef3c7" />
+            <rect x="104" y="328" width="40" height="16" rx="2" fill="#d97706" />
+            <circle cx="124" cy="336" r="3" fill="#fef3c7" />
+            <rect x="120" y="275" width="8" height="20" fill="#78350f" />
+            <polygon points="104,276 144,276 136,246 112,246" fill="#fde047" stroke="#ca8a04" stroke-width="3" />
+            <!-- Bed & Pillow -->
+            <rect x="166" y="262" width="16" height="92" rx="5" fill="#92400e" />
+            <rect x="336" y="302" width="14" height="52" rx="4" fill="#92400e" />
+            <rect x="174" y="302" width="170" height="36" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="2" />
+            <rect x="182" y="284" width="52" height="24" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="2.5" />
+            <path d="M226,300 L342,300 Q346,300 346,312 L346,338 L226,338 Z" fill="#8b5cf6" />
+            <line x1="255" y1="300" x2="255" y2="338" stroke="#a78bfa" stroke-width="6" />
+            <line x1="285" y1="300" x2="285" y2="338" stroke="#c4b5fd" stroke-width="6" />
+            <line x1="315" y1="300" x2="315" y2="338" stroke="#a78bfa" stroke-width="6" />
+            <rect x="170" y="334" width="178" height="12" rx="3" fill="#92400e" />
+          </g>
+
+          <!-- 2. BATHROOM (Top-Right: x=502..920, y=150..375) -->
+          <g id="art-bathroom">
+            <rect x="502" y="150" width="418" height="225" fill="#cffafe" />
+            <rect x="502" y="348" width="418" height="27" fill="#67e8f9" />
+            <g stroke="#a5f3fc" stroke-width="2">
+              <line x1="502" y1="200" x2="920" y2="200" />
+              <line x1="502" y1="250" x2="920" y2="250" />
+              <line x1="502" y1="300" x2="920" y2="300" />
+              <line x1="560" y1="150" x2="560" y2="348" />
+              <line x1="620" y1="150" x2="620" y2="348" />
+              <line x1="680" y1="150" x2="680" y2="348" />
+              <line x1="740" y1="150" x2="740" y2="348" />
+              <line x1="800" y1="150" x2="800" y2="348" />
+              <line x1="860" y1="150" x2="860" y2="348" />
+            </g>
+            <!-- Mirror & Sink -->
+            <ellipse cx="585" cy="218" rx="36" ry="44" fill="#e0f2fe" stroke="#0284c7" stroke-width="5" />
+            <line x1="568" y1="196" x2="594" y2="222" stroke="#ffffff" stroke-width="4" stroke-linecap="round" />
+            <line x1="575" y1="186" x2="592" y2="203" stroke="#ffffff" stroke-width="3" stroke-linecap="round" />
+            <rect x="542" y="294" width="86" height="58" rx="5" fill="#ffffff" stroke="#0ea5e9" stroke-width="3" />
+            <rect x="536" y="286" width="98" height="12" rx="4" fill="#38bdf8" />
+            <path d="M585,286 L585,274 Q585,268 594,268" fill="none" stroke="#64748b" stroke-width="4" stroke-linecap="round" />
+            <!-- Towel Rack -->
+            <line x1="650" y1="264" x2="698" y2="264" stroke="#64748b" stroke-width="4" stroke-linecap="round" />
+            <rect x="658" y="264" width="32" height="44" rx="4" fill="#fb7185" stroke="#e11d48" stroke-width="2" />
+            <!-- Bathtub, Bubbles & Rubber Duck -->
+            <path d="M715,286 L895,286 L885,342 Q882,352 868,352 L742,352 Q728,352 725,342 Z" fill="#ffffff" stroke="#0284c7" stroke-width="4" />
+            <rect x="708" y="278" width="194" height="12" rx="6" fill="#f8fafc" stroke="#0284c7" stroke-width="3" />
+            <circle cx="745" cy="356" r="7" fill="#0284c7" />
+            <circle cx="865" cy="356" r="7" fill="#0284c7" />
+            <circle cx="758" cy="274" r="10" fill="#ffffff" stroke="#bae6fd" stroke-width="2" />
+            <circle cx="776" cy="268" r="13" fill="#ffffff" stroke="#bae6fd" stroke-width="2" />
+            <circle cx="798" cy="274" r="11" fill="#ffffff" stroke="#bae6fd" stroke-width="2" />
+            <circle cx="825" cy="272" r="10" fill="#facc15" />
+            <polygon points="834,272 842,275 834,277" fill="#f97316" />
+            <!-- Shower Rod & Curtain -->
+            <line x1="712" y1="176" x2="906" y2="176" stroke="#64748b" stroke-width="4" />
+            <path d="M888,176 L888,200 L868,208" fill="none" stroke="#64748b" stroke-width="5" stroke-linecap="round" />
+            <path d="M715,176 L762,176 Q742,235 760,295 L715,295 Z" fill="#38bdf8" opacity="0.88" stroke="#0284c7" stroke-width="2" />
+            <rect x="742" y="358" width="110" height="12" rx="6" fill="#f472b6" />
+          </g>
+
+          <!-- 3. LIVING ROOM (Bottom-Left: x=80..358, y=385..610) -->
+          <g id="art-living">
+            <rect x="80" y="385" width="278" height="225" fill="#fef9c3" />
+            <rect x="80" y="582" width="278" height="28" fill="#d97706" opacity="0.55" />
+            <!-- Framed Landscape Art -->
+            <rect x="132" y="412" width="76" height="52" rx="4" fill="#bae6fd" stroke="#b45309" stroke-width="4" />
+            <polygon points="136,460 158,434 176,452 190,438 204,460" fill="#22c55e" />
+            <circle cx="190" cy="426" r="7" fill="#facc15" />
+            <!-- Potted Plant -->
+            <rect x="92" y="544" width="26" height="36" rx="4" fill="#ea580c" />
+            <ellipse cx="105" cy="524" rx="16" ry="22" fill="#22c55e" />
+            <ellipse cx="94" cy="530" rx="10" ry="14" fill="#16a34a" />
+            <ellipse cx="116" cy="530" rx="10" ry="14" fill="#16a34a" />
+            <!-- Sofa & Cushions -->
+            <rect x="128" y="502" width="134" height="44" rx="10" fill="#0d9488" />
+            <rect x="122" y="528" width="146" height="36" rx="8" fill="#14b8a6" />
+            <rect x="118" y="518" width="22" height="48" rx="8" fill="#0f766e" />
+            <rect x="250" y="518" width="22" height="48" rx="8" fill="#0f766e" />
+            <rect x="142" y="512" width="26" height="24" rx="6" fill="#fbbf24" transform="rotate(-8 155 524)" />
+            <rect x="220" y="512" width="26" height="24" rx="6" fill="#fb7185" transform="rotate(8 233 524)" />
+            <!-- Rug & Coffee Table -->
+            <ellipse cx="215" cy="596" rx="92" ry="10" fill="#fda4af" stroke="#f43f5e" stroke-width="2" />
+            <rect x="162" y="568" width="76" height="10" rx="3" fill="#92400e" />
+            <rect x="172" y="578" width="8" height="16" fill="#78350f" />
+            <rect x="220" y="578" width="8" height="16" fill="#78350f" />
+            <!-- TV & Stand -->
+            <rect x="284" y="534" width="62" height="46" rx="4" fill="#92400e" />
+            <rect x="282" y="482" width="66" height="44" rx="5" fill="#1e293b" stroke="#475569" stroke-width="3" />
+            <rect x="288" y="488" width="54" height="32" rx="2" fill="#38bdf8" />
+            <rect x="309" y="526" width="12" height="8" fill="#334155" />
+          </g>
+
+          <!-- 4. KITCHEN (Bottom-Center: x=362..638, y=385..610) -->
+          <g id="art-kitchen">
+            <rect x="362" y="385" width="276" height="225" fill="#ecfdf5" />
+            <rect x="362" y="582" width="276" height="28" fill="#d1fae5" />
+            <!-- Upper Cabinets -->
+            <rect x="444" y="405" width="110" height="58" rx="4" fill="#fbbf24" stroke="#b45309" stroke-width="3" />
+            <line x1="499" y1="405" x2="499" y2="463" stroke="#b45309" stroke-width="3" />
+            <circle cx="490" cy="436" r="3" fill="#78350f" />
+            <circle cx="508" cy="436" r="3" fill="#78350f" />
+            <!-- Refrigerator -->
+            <rect x="374" y="446" width="64" height="136" rx="8" fill="#e2e8f0" stroke="#64748b" stroke-width="3.5" />
+            <line x1="374" y1="498" x2="438" y2="498" stroke="#64748b" stroke-width="3" />
+            <rect x="424" y="466" width="5" height="22" rx="2" fill="#475569" />
+            <rect x="424" y="512" width="5" height="28" rx="2" fill="#475569" />
+            <circle cx="394" cy="472" r="5" fill="#ef4444" />
+            <circle cx="408" cy="480" r="4" fill="#3b82f6" />
+            <!-- Stove & Steaming Pot -->
+            <rect x="450" y="508" width="76" height="74" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="3" />
+            <rect x="462" y="528" width="52" height="40" rx="4" fill="#334155" />
+            <circle cx="464" cy="518" r="3.5" fill="#ef4444" />
+            <circle cx="478" cy="518" r="3.5" fill="#64748b" />
+            <circle cx="498" cy="518" r="3.5" fill="#64748b" />
+            <circle cx="512" cy="518" r="3.5" fill="#64748b" />
+            <rect x="468" y="484" width="38" height="24" rx="4" fill="#ef4444" stroke="#991b1b" stroke-width="2" />
+            <path d="M478,478 Q474,470 480,464" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" />
+            <path d="M492,478 Q496,470 490,464" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" />
+            <!-- Counter & Fruit Bowl -->
+            <rect x="528" y="508" width="98" height="74" rx="4" fill="#fbbf24" stroke="#b45309" stroke-width="3" />
+            <rect x="524" y="502" width="106" height="10" rx="3" fill="#94a3b8" />
+            <line x1="577" y1="512" x2="577" y2="582" stroke="#b45309" stroke-width="3" />
+            <path d="M558,492 L598,492 Q594,504 578,504 Q562,504 558,492 Z" fill="#0ea5e9" />
+            <circle cx="570" cy="489" r="7" fill="#ef4444" />
+            <circle cx="584" cy="488" r="7" fill="#22c55e" />
+            <circle cx="577" cy="483" r="6" fill="#facc15" />
+          </g>
+
+          <!-- 5. DINING ROOM (Bottom-Right: x=642..920, y=385..610) -->
+          <g id="art-dining">
+            <rect x="642" y="385" width="278" height="225" fill="#ffedd5" />
+            <rect x="642" y="582" width="278" height="28" fill="#d97706" opacity="0.55" />
+            <!-- Window -->
+            <rect x="815" y="424" width="76" height="78" rx="6" fill="#bae6fd" stroke="#ea580c" stroke-width="4" />
+            <line x1="853" y1="424" x2="853" y2="502" stroke="#ea580c" stroke-width="3" />
+            <line x1="815" y1="463" x2="891" y2="463" stroke="#ea580c" stroke-width="3" />
+            <!-- Pendant Lamp -->
+            <line x1="760" y1="385" x2="760" y2="442" stroke="#78350f" stroke-width="4" />
+            <path d="M730,468 Q760,428 790,468 Z" fill="#fb923c" stroke="#c2410c" stroke-width="3" />
+            <circle cx="760" cy="470" r="8" fill="#fef08a" />
+            <!-- Chairs & Dining Table -->
+            <rect x="668" y="498" width="12" height="84" rx="4" fill="#92400e" />
+            <rect x="668" y="538" width="44" height="10" rx="3" fill="#b45309" />
+            <rect x="702" y="544" width="10" height="38" rx="3" fill="#92400e" />
+            <rect x="840" y="498" width="12" height="84" rx="4" fill="#92400e" />
+            <rect x="808" y="538" width="44" height="10" rx="3" fill="#b45309" />
+            <rect x="808" y="544" width="10" height="38" rx="3" fill="#92400e" />
+            <rect x="702" y="520" width="116" height="14" rx="5" fill="#92400e" stroke="#78350f" stroke-width="2" />
+            <rect x="716" y="534" width="12" height="50" fill="#78350f" />
+            <rect x="792" y="534" width="12" height="50" fill="#78350f" />
+            <!-- Plates & Flowers -->
+            <ellipse cx="726" cy="518" rx="14" ry="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+            <ellipse cx="794" cy="518" rx="14" ry="4" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" />
+            <rect x="752" y="498" width="16" height="22" rx="5" fill="#38bdf8" />
+            <circle cx="755" cy="492" r="6" fill="#f43f5e" />
+            <circle cx="765" cy="492" r="6" fill="#facc15" />
+            <circle cx="760" cy="486" r="6" fill="#ec4899" />
+          </g>
+
+          <!-- Structural Beams & Room Dividers -->
+          <rect x="74" y="374" width="852" height="12" fill="#78350f" />
+          <rect x="496" y="146" width="8" height="232" fill="#78350f" />
+          <rect x="356" y="382" width="8" height="232" fill="#78350f" />
+          <rect x="636" y="382" width="8" height="232" fill="#78350f" />
+        </svg>
+
+        <!-- LAYER 1B: Custom Uploaded Floorplan Image -->
+        <img id="custom-house-img" alt="Custom House Floorplan"
+          class="hidden w-full h-full object-contain pointer-events-none select-none" />
+
+        <!-- LAYER 2: Spotlight Dim Mask, Golden Glow & Top Interactive Room Hitboxes -->
+        <svg id="spotlight-svg" viewBox="0 0 100 100" preserveAspectRatio="none"
+          class="absolute inset-0 w-full h-full z-10 block" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <mask id="spotlight-mask">
+              <rect x="0" y="0" width="100" height="100" fill="white" />
+              <polygon id="mask-cutout" points="" fill="black" />
+            </mask>
+          </defs>
+
+          <!-- Dark Spotlight Overlay (rgba(15, 23, 42, 0.72), strictly pointer-events: none) -->
+          <rect id="dim-backdrop" x="0" y="0" width="100" height="100"
+            fill="rgba(15, 23, 42, 0.72)" mask="url(#spotlight-mask)"
+            opacity="0" style="pointer-events: none; transition: opacity 0.22s ease;" />
+
+          <!-- Glowing Golden Active Room Border (strictly pointer-events: none) -->
+          <polygon id="active-room-border" points="" fill="none"
+            stroke="#fbbf24" stroke-width="1" stroke-linejoin="round"
+            class="hidden active-room-glow" style="pointer-events: none;" />
+
+          <!-- Brief Red Flash Border on Wrong Click (strictly pointer-events: none) -->
+          <polygon id="hint-room-border" points="" fill="rgba(244, 63, 94, 0.16)"
+            stroke="#f43f5e" stroke-width="1.2" stroke-dasharray="2.2,1.2" stroke-linejoin="round"
+            class="hidden hint-room-flash" style="pointer-events: none;" />
+
+          <!-- Interactive Room Click Hitboxes (ALWAYS top layer) -->
+          <g id="room-hitboxes"></g>
+        </svg>
+
+        <!-- LAYER 3: Cute Illustrated Capybara Buddy (strictly pointer-events: none) -->
+        <div id="character-sprite"
+          class="absolute z-20 pointer-events-none opacity-0"
+          style="left: 50%; top: 50%; width: clamp(64px, 9.2%, 104px); transform: translate(-50%, -50%); pointer-events: none;">
+          <svg viewBox="0 0 112 94" class="w-full h-auto drop-shadow-xl pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+            <ellipse cx="56" cy="86" rx="36" ry="5.5" fill="rgba(15, 23, 42, 0.26)" />
+            <ellipse cx="34" cy="79" rx="9" ry="5.5" fill="#7c4a26" stroke="#5c3417" stroke-width="2" />
+            <ellipse cx="76" cy="79" rx="9" ry="5.5" fill="#7c4a26" stroke="#5c3417" stroke-width="2" />
+            <path d="M18,62 C16,42 32,32 54,32 C76,32 92,43 92,61 C92,76 78,82 54,82 C30,82 20,76 18,62 Z"
+              fill="#b47b47" stroke="#7c4a26" stroke-width="3" stroke-linejoin="round" />
+            <ellipse cx="51" cy="64" rx="22" ry="11" fill="#cfa06e" opacity="0.55" />
+            <ellipse cx="54" cy="27" rx="7" ry="6" fill="#9a6334" stroke="#6b3e1d" stroke-width="2.5" transform="rotate(-18 54 27)" />
+            <ellipse cx="54" cy="27.5" rx="3.4" ry="2.8" fill="#dfb084" transform="rotate(-18 54 27.5)" />
+            <ellipse cx="76" cy="26" rx="6.5" ry="5.5" fill="#9a6334" stroke="#6b3e1d" stroke-width="2.5" transform="rotate(15 76 26)" />
+            <ellipse cx="76" cy="26.5" rx="3" ry="2.5" fill="#dfb084" transform="rotate(15 76 26.5)" />
+            <path d="M47,42 C47,26 60,21 76,22 C92,23 102,31 102,43 C102,55 92,61 74,61 C56,61 47,55 47,42 Z"
+              fill="#bc834e" stroke="#7c4a26" stroke-width="3" stroke-linejoin="round" />
+            <path d="M84,36 C95,35 103,40 103,47 C103,55 95,59 85,58 C78,57 76,52 77,46 C77,40 80,36 84,36 Z"
+              fill="#6b3e1d" />
+            <ellipse cx="90" cy="43.5" rx="2.3" ry="1.6" fill="#3b200e" transform="rotate(-15 90 43.5)" />
+            <ellipse cx="97.5" cy="43.5" rx="2.3" ry="1.6" fill="#3b200e" transform="rotate(15 97.5 43.5)" />
+            <path d="M93.5,47 L93.5,51.5 M88.5,51.5 Q93.5,55 98.5,51.5"
+              fill="none" stroke="#3b200e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M62,38.5 Q66.5,35 71,38.5" fill="none" stroke="#3b200e" stroke-width="2.8" stroke-linecap="round" />
+            <ellipse cx="64" cy="45.5" rx="5" ry="3" fill="#fda4af" opacity="0.65" />
+            <ellipse cx="44" cy="80" rx="8.5" ry="5" fill="#8c582b" stroke="#5c3417" stroke-width="2.2" />
+            <ellipse cx="67" cy="80" rx="8.5" ry="5" fill="#8c582b" stroke="#5c3417" stroke-width="2.2" />
+            <line x1="42" y1="81" x2="42" y2="84" stroke="#5c3417" stroke-width="1.5" stroke-linecap="round" />
+            <line x1="46" y1="81" x2="46" y2="84" stroke="#5c3417" stroke-width="1.5" stroke-linecap="round" />
+            <line x1="65" y1="81" x2="65" y2="84" stroke="#5c3417" stroke-width="1.5" stroke-linecap="round" />
+            <line x1="69" y1="81" x2="69" y2="84" stroke="#5c3417" stroke-width="1.5" stroke-linecap="round" />
+            <!-- Tiny Orange Yuzu with Green Leaf -->
+            <g>
+              <path d="M71,9 C75,4 82,5 81,10 C77,12 73,11 71,9 Z" fill="#22c55e" stroke="#15803d" stroke-width="1.5" />
+              <line x1="69.5" y1="11.5" x2="70.5" y2="7.5" stroke="#15803d" stroke-width="2" stroke-linecap="round" />
+              <ellipse cx="69.5" cy="17.5" rx="9.5" ry="7.8" fill="#fb923c" stroke="#c2410c" stroke-width="2" />
+              <ellipse cx="66" cy="14.8" rx="3" ry="1.6" fill="#fed7aa" opacity="0.9" transform="rotate(-20 66 14.8)" />
+            </g>
+          </svg>
+        </div>
+
+        <!-- LAYER 4: Large High-Contrast Floating Word Badge (strictly pointer-events: none) -->
+        <div id="floating-word-pill"
+          class="hidden absolute z-20 pointer-events-none -translate-x-1/2 -translate-y-full px-5 py-1.5 rounded-full bg-slate-900/95 text-amber-300 font-display font-bold text-lg sm:text-2xl tracking-wider shadow-2xl border-2 border-amber-300 whitespace-nowrap"
+          style="pointer-events: none;">
+        </div>
+
+        <!-- LAYER 5: Celebratory Confetti Canvas (strictly pointer-events: none) -->
+        <canvas id="confetti-canvas"
+          class="absolute inset-0 w-full h-full z-30 pointer-events-none"
+          style="pointer-events: none;"></canvas>
+      </div>
+
+      <!-- SPOTLIGHT MODE ONLY: Minimal Floating Bottom Pill Dock -->
+      <div id="spotlight-dock"
+        class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-white/95 backdrop-blur-md border border-slate-200 shadow-xl rounded-full px-3 py-2 flex items-center gap-2">
+        <button id="btn-dock-reveal" type="button"
+          class="hidden btn-tap px-5 py-2 rounded-full bg-amber-400 hover:bg-amber-500 text-slate-900 font-display font-bold text-base shadow-sm flex items-center gap-2">
+          <span>👁️</span>
+          <span>Reveal Word (Space)</span>
+        </button>
+
+        <button id="btn-dock-speak" type="button" disabled
+          class="btn-tap px-5 py-2 rounded-full bg-indigo-500 hover:bg-indigo-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-display font-bold text-base shadow-sm flex items-center gap-2">
+          <span>🗣️</span>
+          <span>Speak Word</span>
+        </button>
+
+        <button id="btn-dock-clear" type="button"
+          class="btn-tap px-3.5 py-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-display font-bold text-sm"
+          title="Turn off spotlight">
+          💡 Lights On
+        </button>
+      </div>
+    </section>
+
+    <!-- COMPACT SEQUENCE RAIL (Memory Mode Only — ~210px wide) -->
+    <aside id="sequence-rail"
+      class="w-[210px] shrink-0 bg-white rounded-3xl border border-slate-200/90 shadow-lg p-3 flex flex-col gap-2.5 min-h-0">
+
+      <!-- Level & Score Pill -->
+      <div class="bg-slate-900 text-white rounded-2xl px-3 py-2 flex items-center justify-between shadow-sm shrink-0">
+        <div class="flex items-center gap-1.5">
+          <span class="text-xs font-extrabold uppercase text-sky-300">Lv</span>
+          <span id="stat-level" class="font-display text-xl font-bold leading-none">1</span>
+        </div>
+        <div class="h-4 w-px bg-slate-700"></div>
+        <div class="flex items-center gap-1">
+          <span class="text-amber-300 text-sm">★</span>
+          <span id="stat-score" class="font-display text-xl font-bold leading-none">0</span>
+        </div>
+      </div>
+
+      <!-- Step Slots List -->
+      <div id="sequence-slots" class="flex-1 min-h-0 overflow-y-auto thin-scroll flex flex-col gap-2 pr-0.5">
+        <div class="flex-1 flex flex-col items-center justify-center text-center p-3 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-slate-400">
+          <span class="text-2xl mb-1">👆</span>
+          <span class="font-display font-bold text-sm">Tap Start</span>
+          <span class="text-xs font-bold mt-0.5">Watch the rooms light up!</span>
+        </div>
+      </div>
+
+      <!-- Next Level Celebration Button (Appears on round clear) -->
+      <button id="btn-next-level" type="button"
+        class="hidden btn-tap shrink-0 w-full py-3 px-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-display font-bold text-base shadow-md border-b-[3px] border-indigo-800 flex items-center justify-center gap-1.5">
+        <span>🌟</span>
+        <span>Next Level +1</span>
+      </button>
+    </aside>
+  </main>
+
+  <!-- =======================================================================
+       3. SLIDE-OVER SETTINGS DRAWER (Backdrop Blur)
+       ======================================================================= -->
+  <div id="settings-backdrop"
+    class="hidden fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm transition-opacity"></div>
+
+  <aside id="settings-drawer"
+    class="drawer-closed fixed top-0 right-0 h-[100dvh] w-[340px] max-w-[92vw] bg-white z-50 shadow-2xl border-l border-slate-200 flex flex-col">
+
+    <!-- Drawer Header -->
+    <div class="h-16 px-5 border-b border-slate-200 flex items-center justify-between shrink-0">
+      <h2 class="font-display text-xl font-bold text-slate-900 flex items-center gap-2">
+        <span>⚙️</span>
+        <span>Classroom Settings</span>
+      </h2>
+      <button id="btn-close-settings" type="button"
+        class="btn-tap w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-lg flex items-center justify-center">
+        ✕
+      </button>
+    </div>
+
+    <!-- Drawer Controls -->
+    <div class="flex-1 overflow-y-auto thin-scroll p-5 flex flex-col gap-5">
+
+      <!-- Starting Sequence Length (2 to 6) -->
+      <div>
+        <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">
+          Starting Sequence Length
+        </label>
+        <div class="grid grid-cols-5 gap-1.5" id="length-selector">
+          <button type="button" data-len="2" class="len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-slate-200 text-slate-600">2</button>
+          <button type="button" data-len="3" class="len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-sky-500 bg-sky-500 text-white">3</button>
+          <button type="button" data-len="4" class="len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-slate-200 text-slate-600">4</button>
+          <button type="button" data-len="5" class="len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-slate-200 text-slate-600">5</button>
+          <button type="button" data-len="6" class="len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-slate-200 text-slate-600">6</button>
+        </div>
+      </div>
+
+      <!-- Playback Speed -->
+      <div>
+        <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">
+          Playback Speed
+        </label>
+        <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl">
+          <button type="button" data-speed="slow" class="speed-btn btn-tap py-2 rounded-xl text-sm font-extrabold text-slate-600">Slow</button>
+          <button type="button" data-speed="normal" class="speed-btn btn-tap py-2 rounded-xl text-sm font-extrabold bg-white text-sky-600 shadow-sm">Normal</button>
+          <button type="button" data-speed="fast" class="speed-btn btn-tap py-2 rounded-xl text-sm font-extrabold text-slate-600">Fast</button>
+        </div>
+      </div>
+
+      <!-- Toggle Switches -->
+      <div class="flex flex-col gap-3 border-t border-slate-200 pt-4">
+        <label class="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div>
+            <div class="font-display font-bold text-slate-800 text-base">🍊 Capybara Buddy</div>
+            <div class="text-xs font-bold text-slate-500">Hops into each lit room</div>
+          </div>
+          <input id="chk-capybara" type="checkbox" checked class="w-5 h-5 accent-sky-500 cursor-pointer" />
+        </label>
+
+        <label class="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div>
+            <div class="font-display font-bold text-slate-800 text-base">🗣️ Auto-Speak Word</div>
+            <div class="text-xs font-bold text-slate-500">Reads aloud at 0.85x speed</div>
+          </div>
+          <input id="chk-autospeak" type="checkbox" class="w-5 h-5 accent-indigo-500 cursor-pointer" />
+        </label>
+
+        <label class="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
+          <div>
+            <div class="font-display font-bold text-slate-800 text-base">🔊 Sound Effects</div>
+            <div class="text-xs font-bold text-slate-500">Chimes, pops &amp; fanfare</div>
+          </div>
+          <input id="chk-sfx" type="checkbox" checked class="w-5 h-5 accent-emerald-500 cursor-pointer" />
+        </label>
+
+        <label class="flex items-center justify-between gap-3 cursor-pointer p-2.5 rounded-2xl bg-amber-50 border border-amber-200">
+          <div>
+            <div class="font-display font-bold text-slate-900 text-base">❓ Spotlight Quiz Mode</div>
+            <div class="text-xs font-bold text-amber-800">Hide words until Reveal / Space</div>
+          </div>
+          <input id="chk-quiz-mode" type="checkbox" class="w-5 h-5 accent-amber-500 cursor-pointer" />
+        </label>
+      </div>
+
+      <!-- Custom Floorplan Launcher -->
+      <div class="border-t border-slate-200 pt-4">
+        <button id="btn-open-editor" type="button"
+          class="btn-tap w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-display font-bold text-base shadow-md flex items-center justify-center gap-2">
+          <span>🖼️</span>
+          <span>Edit / Upload Floorplan</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- =======================================================================
+       4. CUSTOM FLOORPLAN & ROOM HOTSPOT EDITOR MODAL
+       ======================================================================= -->
+  <div id="editor-modal"
+    class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm p-3 sm:p-6 flex items-center justify-center">
+
+    <div class="w-full max-w-6xl h-[90dvh] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+
+      <!-- Modal Header -->
+      <div class="h-16 px-5 border-b border-slate-200 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">✏️</span>
+          <div>
+            <h2 class="font-display text-xl font-bold text-slate-900 leading-tight">
+              Custom Floorplan &amp; Room Editor
+            </h2>
+            <p class="text-xs font-bold text-slate-500">
+              Upload your own house image, click corners to trace rooms, and name them.
+            </p>
+          </div>
+        </div>
+
+        <button id="btn-close-editor" type="button"
+          class="btn-tap px-5 py-2 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white font-display font-bold text-base shadow-sm">
+          Done
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+
+        <!-- Left: Interactive Tracing Canvas -->
+        <div id="editor-canvas-wrapper"
+          class="flex-1 min-w-0 min-h-0 bg-slate-100 p-4 flex items-center justify-center relative overflow-hidden">
+
+          <div id="editor-stage"
+            class="relative rounded-2xl overflow-hidden shadow-lg ring-2 ring-slate-300 bg-sky-100 select-none cursor-crosshair">
+            <!-- Cloned visual background (either built-in house or custom image) -->
+            <div id="editor-bg-default" class="w-full h-full pointer-events-none"></div>
+            <img id="editor-bg-custom" alt="Custom Floorplan"
+              class="hidden w-full h-full object-contain pointer-events-none select-none" />
+
+            <!-- Polygon Drawing SVG -->
+            <svg id="editor-svg" viewBox="0 0 100 100" preserveAspectRatio="none"
+              class="absolute inset-0 w-full h-full z-10 block"></svg>
+          </div>
+        </div>
+
+        <!-- Right: Editor Controls -->
+        <div class="w-full lg:w-[320px] shrink-0 border-t lg:border-t-0 lg:border-l border-slate-200 p-4 flex flex-col gap-3.5 bg-white overflow-y-auto thin-scroll">
+
+          <!-- 1. Upload Image -->
+          <div>
+            <label class="block text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">
+              1. Floorplan Image
+            </label>
+            <label class="btn-tap cursor-pointer flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-sky-50 hover:bg-sky-100 border-2 border-dashed border-sky-400 text-sky-700 font-bold text-sm">
+              <span>📁</span>
+              <span>Upload PNG / JPG / WebP</span>
+              <input id="input-custom-image" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" />
+            </label>
+          </div>
+
+          <!-- 2. Trace & Save Room -->
+          <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <span class="font-display font-bold text-sm text-slate-800">2. Trace Room Corners</span>
+              <span id="editor-points-badge" class="text-xs font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                0 pts
+              </span>
+            </div>
+
+            <input id="input-room-name" type="text" placeholder="Room name (e.g. KITCHEN)" maxlength="24"
+              class="w-full px-3 py-2 rounded-xl border-2 border-slate-300 focus:border-sky-500 focus:outline-none font-bold text-sm uppercase bg-white" />
+
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btn-undo-point" type="button"
+                class="btn-tap py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs">
+                ↩️ Undo Point
+              </button>
+              <button id="btn-clear-draft" type="button"
+                class="btn-tap py-2 rounded-xl bg-white border border-slate-300 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-bold text-xs">
+                🧹 Clear Draft
+              </button>
+            </div>
+
+            <button id="btn-save-room" type="button"
+              class="btn-tap w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-display font-bold text-sm shadow-sm border-b-[3px] border-emerald-700">
+              ✅ Save Room
+            </button>
+
+            <div id="editor-status" class="hidden text-xs font-bold px-2.5 py-1.5 rounded-xl"></div>
+          </div>
+
+          <!-- 3. Defined Rooms List -->
+          <div class="flex-1 min-h-[120px] flex flex-col">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+                Rooms (<span id="editor-room-count">0</span>)
+              </span>
+              <button id="btn-reset-house" type="button"
+                class="text-xs font-extrabold text-rose-600 hover:underline">
+                Reset to Built-In House
+              </button>
+            </div>
+            <div id="editor-rooms-list" class="flex-1 overflow-y-auto thin-scroll flex flex-col gap-1.5 pr-0.5"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * HOUSE SPOTLIGHT & MEMORY SEQUENCE — STREAMLINED SMARTBOARD ENGINE
+     * =========================================================================
+     * Anti-Freeze Guarantees:
+     * 1. Every setTimeout is tracked in activeTimers and guarded by state.runId.
+     * 2. Web Speech API & Web Audio API are strictly non-blocking fire-and-forget.
+     * 3. Dim mask, golden glow, floating word, confetti & capybara use pointer-events: none.
+     */
+
+    // =========================================================================
+    // 1. DEFAULT 5-ROOM HOUSE DATA & CONSTANTS
+    // =========================================================================
+    const DEFAULT_ROOMS = [
+      { id: 'bedroom',     name: 'BEDROOM',     color: '#8b5cf6', points: [[8, 22.06], [49.8, 22.06], [49.8, 55.15], [8, 55.15]] },
+      { id: 'bathroom',    name: 'BATHROOM',    color: '#0ea5e9', points: [[50.2, 22.06], [92, 22.06], [92, 55.15], [50.2, 55.15]] },
+      { id: 'living-room', name: 'LIVING ROOM', color: '#14b8a6', points: [[8, 56.62], [35.8, 56.62], [35.8, 89.71], [8, 89.71]] },
+      { id: 'kitchen',     name: 'KITCHEN',     color: '#f59e0b', points: [[36.2, 56.62], [63.8, 56.62], [63.8, 89.71], [36.2, 89.71]] },
+      { id: 'dining-room', name: 'DINING ROOM', color: '#f97316', points: [[64.2, 56.62], [92, 56.62], [92, 89.71], [64.2, 89.71]] },
+    ];
+
+    const ROOM_PALETTE = ['#8b5cf6', '#0ea5e9', '#14b8a6', '#f59e0b', '#f97316', '#ec4899', '#22c55e', '#6366f1'];
+    const STORAGE_KEY = 'esl_house_spotlight_smartboard_v1';
+
+    const SPEED_MS = {
+      slow:   { lit: 1750, gap: 450 },
+      normal: { lit: 1200, gap: 320 },
+      fast:   { lit: 780,  gap: 220 },
+    };
+
+    // =========================================================================
+    // 2. APPLICATION STATE & ANTI-FREEZE TIMER MANAGER
+    // =========================================================================
+    const state = {
+      mode: 'memory', // 'memory' | 'spotlight'
+      rooms: JSON.parse(JSON.stringify(DEFAULT_ROOMS)),
+      customImageDataUrl: null,
+      aspectRatio: 1000 / 680,
+
+      // Teacher Settings (in Slide-Over Drawer)
+      startLength: 3,
+      speed: 'normal',
+      showCapybara: true,
+      autoSpeak: false,
+      sfxEnabled: true,
+      quizMode: false,
+
+      // Active Display State
+      activeRoomId: null,
+      currentSpeakWord: '',
+      wordRevealed: true,
+
+      // Memory Game State
+      phase: 'idle', // 'idle' | 'watching' | 'recalling' | 'won'
+      level: 1,
+      score: 0,
+      sequence: [],
+      recallIndex: 0,
+      runId: 0,
+
+      // Custom Editor State
+      editorOpen: false,
+      draftPoints: [],
+    };
+
+    const activeTimers = new Set();
+
+    function safeTimeout(fn, ms) {
+      const id = window.setTimeout(() => {
+        activeTimers.delete(id);
+        fn();
+      }, ms);
+      activeTimers.add(id);
+      return id;
+    }
+
+    function cancelRunningWork() {
+      state.runId += 1;
+      activeTimers.forEach(id => window.clearTimeout(id));
+      activeTimers.clear();
+      clearHintBorder();
+      try {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+
+    // =========================================================================
+    // 3. NON-BLOCKING SOUND FX & WEB SPEECH API (0.85x)
+    // =========================================================================
+    const SoundFX = {
+      ctx: null,
+      ensureContext() {
+        try {
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+        } catch (_) {}
+      },
+      playTone(freq, duration, type = 'sine', volume = 0.16, delay = 0) {
+        if (!state.sfxEnabled) return;
+        try {
+          this.ensureContext();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime + delay;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(volume, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now);
+          osc.stop(now + duration + 0.03);
+        } catch (_) {}
+      },
+      pop() {
+        this.playTone(523.25, 0.14, 'triangle', 0.16, 0);
+        this.playTone(659.25, 0.12, 'sine', 0.1, 0.05);
+      },
+      success() {
+        this.playTone(523.25, 0.16, 'triangle', 0.18, 0);
+        this.playTone(659.25, 0.22, 'triangle', 0.18, 0.09);
+      },
+      victory() {
+        [523.25, 659.25, 783.99, 1046.5].forEach((n, i) => {
+          this.playTone(n, 0.25, 'triangle', 0.2, i * 0.11);
+        });
+      },
+      error() {
+        this.playTone(230, 0.18, 'sine', 0.16, 0);
+        this.playTone(185, 0.24, 'sine', 0.16, 0.11);
+      },
+    };
+
+    function speakWord(text) {
+      if (!text) return;
+      try {
+        if (!('speechSynthesis' in window)) return;
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(String(text).toLowerCase());
+        utter.lang = 'en-US';
+        utter.rate = 0.85;
+        utter.pitch = 1.02;
+        const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+        const preferred = voices.find(v => v.lang && v.lang.startsWith('en-US') && /Google|Samantha|Natural|Microsoft/i.test(v.name))
+          || voices.find(v => v.lang && v.lang.startsWith('en'));
+        if (preferred) utter.voice = preferred;
+        window.speechSynthesis.speak(utter);
+      } catch (_) {}
+    }
+
+    // =========================================================================
+    // 4. DOM REFERENCES
+    // =========================================================================
+    const el = {
+      modeTabs: document.querySelectorAll('.mode-tab'),
+      phaseBadge: document.getElementById('phase-badge'),
+      bannerWord: document.getElementById('banner-word'),
+      btnHeaderSpeak: document.getElementById('btn-header-speak'),
+      btnStart: document.getElementById('btn-start'),
+      btnStartIcon: document.getElementById('btn-start-icon'),
+      btnStartLabel: document.getElementById('btn-start-label'),
+      btnReplay: document.getElementById('btn-replay'),
+      btnFullscreen: document.getElementById('btn-fullscreen'),
+      iconFsEnter: document.getElementById('icon-fs-enter'),
+      iconFsExit: document.getElementById('icon-fs-exit'),
+      btnOpenSettings: document.getElementById('btn-open-settings'),
+
+      stageWrapper: document.getElementById('stage-wrapper'),
+      houseStage: document.getElementById('house-stage'),
+      defaultHouseSvg: document.getElementById('default-house-svg'),
+      customHouseImg: document.getElementById('custom-house-img'),
+      spotlightSvg: document.getElementById('spotlight-svg'),
+      maskCutout: document.getElementById('mask-cutout'),
+      dimBackdrop: document.getElementById('dim-backdrop'),
+      activeRoomBorder: document.getElementById('active-room-border'),
+      hintRoomBorder: document.getElementById('hint-room-border'),
+      roomHitboxes: document.getElementById('room-hitboxes'),
+      characterSprite: document.getElementById('character-sprite'),
+      floatingWordPill: document.getElementById('floating-word-pill'),
+      confettiCanvas: document.getElementById('confetti-canvas'),
+
+      spotlightDock: document.getElementById('spotlight-dock'),
+      btnDockReveal: document.getElementById('btn-dock-reveal'),
+      btnDockSpeak: document.getElementById('btn-dock-speak'),
+      btnDockClear: document.getElementById('btn-dock-clear'),
+
+      sequenceRail: document.getElementById('sequence-rail'),
+      statLevel: document.getElementById('stat-level'),
+      statScore: document.getElementById('stat-score'),
+      sequenceSlots: document.getElementById('sequence-slots'),
+      btnNextLevel: document.getElementById('btn-next-level'),
+
+      settingsBackdrop: document.getElementById('settings-backdrop'),
+      settingsDrawer: document.getElementById('settings-drawer'),
+      btnCloseSettings: document.getElementById('btn-close-settings'),
+      chkCapybara: document.getElementById('chk-capybara'),
+      chkAutoSpeak: document.getElementById('chk-autospeak'),
+      chkSfx: document.getElementById('chk-sfx'),
+      chkQuizMode: document.getElementById('chk-quiz-mode'),
+      btnOpenEditor: document.getElementById('btn-open-editor'),
+
+      editorModal: document.getElementById('editor-modal'),
+      btnCloseEditor: document.getElementById('btn-close-editor'),
+      editorCanvasWrapper: document.getElementById('editor-canvas-wrapper'),
+      editorStage: document.getElementById('editor-stage'),
+      editorBgDefault: document.getElementById('editor-bg-default'),
+      editorBgCustom: document.getElementById('editor-bg-custom'),
+      editorSvg: document.getElementById('editor-svg'),
+      inputCustomImage: document.getElementById('input-custom-image'),
+      editorPointsBadge: document.getElementById('editor-points-badge'),
+      inputRoomName: document.getElementById('input-room-name'),
+      btnUndoPoint: document.getElementById('btn-undo-point'),
+      btnClearDraft: document.getElementById('btn-clear-draft'),
+      btnSaveRoom: document.getElementById('btn-save-room'),
+      editorStatus: document.getElementById('editor-status'),
+      editorRoomCount: document.getElementById('editor-room-count'),
+      editorRoomsList: document.getElementById('editor-rooms-list'),
+      btnResetHouse: document.getElementById('btn-reset-house'),
+    };
+
+    // =========================================================================
+    // 5. RESPONSIVE SMARTBOARD STAGE SIZING (Guaranteed Zero Overflow)
+    // =========================================================================
+    function fitStageBox(wrapperEl, stageEl, ratio) {
+      if (!wrapperEl || !stageEl) return;
+      const rect = wrapperEl.getBoundingClientRect();
+      const pad = 4;
+      const availW = Math.max(120, rect.width - pad);
+      const availH = Math.max(120, rect.height - pad);
+      let w = availW;
+      let h = w / ratio;
+      if (h > availH) {
+        h = availH;
+        w = h * ratio;
+      }
+      stageEl.style.width = `${Math.floor(w)}px`;
+      stageEl.style.height = `${Math.floor(h)}px`;
+    }
+
+    function fitAllStages() {
+      fitStageBox(el.stageWrapper, el.houseStage, state.aspectRatio);
+      if (state.editorOpen) {
+        fitStageBox(el.editorCanvasWrapper, el.editorStage, state.aspectRatio);
+      }
+    }
+
+    // =========================================================================
+    // 6. GEOMETRY & ROOM HELPERS
+    // =========================================================================
+    function pointsToSvgString(points) {
+      return points.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+    }
+
+    function getRoomCentroid(points) {
+      if (!points || !points.length) return { x: 50, y: 50 };
+      let sx = 0, sy = 0;
+      points.forEach(([x, y]) => { sx += x; sy += y; });
+      return { x: sx / points.length, y: sy / points.length };
+    }
+
+    function getRoomTopCenter(points) {
+      if (!points || !points.length) return { x: 50, y: 20 };
+      const c = getRoomCentroid(points);
+      const minY = Math.min(...points.map(p => p[1]));
+      return { x: c.x, y: Math.max(11, minY + 2) };
+    }
+
+    function getRoomById(id) {
+      return state.rooms.find(r => r.id === id) || null;
+    }
+
+    // =========================================================================
+    // 7. BANNER, SPOTLIGHT MASK & CAPYBARA BUDDY
+    // =========================================================================
+    function setBanner({ badge, badgeClass, word, speakableWord = '' }) {
+      if (badge !== undefined) {
+        el.phaseBadge.textContent = badge;
+        el.phaseBadge.className = `hidden md:inline-flex items-center px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider whitespace-nowrap shrink-0 ${badgeClass || 'bg-sky-100 text-sky-700'}`;
+      }
+      if (word !== undefined) {
+        el.bannerWord.textContent = word;
+        el.bannerWord.classList.remove('animate-word-pop');
+        void el.bannerWord.offsetWidth;
+        el.bannerWord.classList.add('animate-word-pop');
+      }
+      state.currentSpeakWord = speakableWord;
+      el.btnHeaderSpeak.disabled = !speakableWord;
+      el.btnDockSpeak.disabled = !speakableWord;
+    }
+
+    function clearHintBorder() {
+      el.hintRoomBorder.classList.add('hidden');
+      el.hintRoomBorder.setAttribute('points', '');
+    }
+
+    function flashExpectedRoomHint(room) {
+      if (!room) return;
+      el.hintRoomBorder.setAttribute('points', pointsToSvgString(room.points));
+      el.hintRoomBorder.classList.remove('hidden');
+      const token = state.runId;
+      safeTimeout(() => {
+        if (token === state.runId) clearHintBorder();
+      }, 950);
+    }
+
+    function moveCapybaraToRoom(room) {
+      if (!state.showCapybara || !room) {
+        el.characterSprite.style.opacity = '0';
+        return;
+      }
+      const c = getRoomCentroid(room.points);
+      el.characterSprite.style.left = `${c.x}%`;
+      el.characterSprite.style.top = `${c.y}%`;
+      el.characterSprite.style.opacity = '1';
+      el.characterSprite.classList.remove('character-hopping');
+      void el.characterSprite.offsetWidth;
+      el.characterSprite.classList.add('character-hopping');
+    }
+
+    function hideCapybara() {
+      el.characterSprite.style.opacity = '0';
+    }
+
+    function spotlightRoom(roomId, opts = {}) {
+      const {
+        dimBackground = true,
+        showFloatingWord = true,
+        hideWord = false,
+        playPop = false,
+        triggerAutoSpeak = false,
+      } = opts;
+
+      const room = getRoomById(roomId);
+      if (!room) {
+        clearSpotlight();
+        return;
+      }
+
+      state.activeRoomId = room.id;
+      const pts = pointsToSvgString(room.points);
+
+      el.maskCutout.setAttribute('points', pts);
+      el.dimBackdrop.setAttribute('opacity', dimBackground ? '1' : '0');
+      el.activeRoomBorder.setAttribute('points', pts);
+      el.activeRoomBorder.classList.remove('hidden');
+
+      moveCapybaraToRoom(room);
+
+      if (showFloatingWord && !hideWord) {
+        const topPos = getRoomTopCenter(room.points);
+        el.floatingWordPill.textContent = room.name;
+        el.floatingWordPill.style.left = `${topPos.x}%`;
+        el.floatingWordPill.style.top = `${topPos.y}%`;
+        el.floatingWordPill.classList.remove('hidden');
+      } else {
+        el.floatingWordPill.classList.add('hidden');
+      }
+
+      if (playPop) SoundFX.pop();
+      if (triggerAutoSpeak && state.autoSpeak && !hideWord) {
+        speakWord(room.name);
+      }
+    }
+
+    function clearSpotlight(softDim = false) {
+      state.activeRoomId = null;
+      el.maskCutout.setAttribute('points', '');
+      el.dimBackdrop.setAttribute('opacity', softDim ? '0.32' : '0');
+      el.activeRoomBorder.classList.add('hidden');
+      el.floatingWordPill.classList.add('hidden');
+    }
+
+    // =========================================================================
+    // 8. HOUSE ARTWORK & TOP HITBOX LAYER RENDERING
+    // =========================================================================
+    function renderStageBackground() {
+      if (state.customImageDataUrl) {
+        el.defaultHouseSvg.classList.add('hidden');
+        el.customHouseImg.src = state.customImageDataUrl;
+        el.customHouseImg.classList.remove('hidden');
+      } else {
+        el.customHouseImg.classList.add('hidden');
+        el.defaultHouseSvg.classList.remove('hidden');
+      }
+      fitAllStages();
+    }
+
+    function renderRoomHitboxes() {
+      el.roomHitboxes.innerHTML = '';
+      state.rooms.forEach(room => {
+        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('points', pointsToSvgString(room.points));
+        poly.setAttribute('fill', 'rgba(255,255,255,0.001)');
+        poly.setAttribute('class', 'room-hitbox');
+        poly.addEventListener('click', (evt) => {
+          evt.stopPropagation();
+          handleRoomTap(room.id);
+        });
+        el.roomHitboxes.appendChild(poly);
+      });
+    }
+
+    // =========================================================================
+    // 9. MEMORY GAME LOGIC & COMPACT SEQUENCE RAIL
+    // =========================================================================
+    function generateSequence(len) {
+      const seq = [];
+      if (!state.rooms.length) return seq;
+      for (let i = 0; i < len; i++) {
+        let pool = state.rooms;
+        if (i > 0 && state.rooms.length > 1) {
+          pool = state.rooms.filter(r => r.id !== seq[i - 1]);
+        }
+        seq.push(pool[Math.floor(Math.random() * pool.length)].id);
+      }
+      return seq;
+    }
+
+    function renderSequenceRail(activeWatchIdx = -1) {
+      el.statLevel.textContent = state.level;
+      el.statScore.textContent = state.score;
+      el.sequenceSlots.innerHTML = '';
+
+      if (!state.sequence.length) {
+        el.sequenceSlots.innerHTML = `
+          <div class="flex-1 flex flex-col items-center justify-center text-center p-3 rounded-2xl bg-slate-50 border border-dashed border-slate-300 text-slate-400">
+            <span class="text-2xl mb-1">👆</span>
+            <span class="font-display font-bold text-sm">Tap Start</span>
+            <span class="text-xs font-bold mt-0.5">Watch the rooms light up!</span>
+          </div>`;
+        return;
+      }
+
+      state.sequence.forEach((roomId, idx) => {
+        const room = getRoomById(roomId);
+        const slot = document.createElement('div');
+
+        const isWatchingNow = state.phase === 'watching' && idx === activeWatchIdx;
+        const isWatchedPast = state.phase === 'watching' && idx < activeWatchIdx;
+        const isRecalled = (state.phase === 'recalling' || state.phase === 'won') && idx < state.recallIndex;
+        const isNextTarget = state.phase === 'recalling' && idx === state.recallIndex;
+
+        let cls = 'flex items-center justify-between gap-2 px-2.5 py-2.5 rounded-2xl border-2 transition-all shrink-0 ';
+        let label = '? ? ?';
+        let icon = '';
+
+        if (isWatchingNow) {
+          cls += 'bg-amber-100 border-amber-400 scale-[1.02] shadow-sm';
+          label = room ? room.name : 'ROOM';
+          icon = '👀';
+        } else if (isWatchedPast) {
+          cls += 'bg-sky-50 border-sky-200';
+          label = room ? room.name : 'ROOM';
+          icon = '✨';
+        } else if (isRecalled) {
+          cls += 'bg-emerald-50 border-emerald-400';
+          label = room ? room.name : 'ROOM';
+          icon = '✅';
+        } else if (isNextTarget) {
+          cls += 'bg-indigo-50 border-indigo-400 shadow-sm';
+          label = '? ? ?';
+          icon = '👉';
+        } else {
+          cls += 'bg-slate-50 border-slate-200';
+          icon = '🔒';
+        }
+
+        slot.className = cls;
+        slot.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-7 h-7 rounded-xl bg-white border border-slate-200 flex items-center justify-center font-display font-bold text-sm text-slate-800 shrink-0">
+              ${idx + 1}
+            </span>
+            <span class="font-display font-bold text-sm tracking-wide truncate ${label.includes('?') ? 'text-slate-400' : 'text-slate-900'}">
+              ${label}
+            </span>
+          </div>
+          <span class="text-sm shrink-0">${icon}</span>
+        `;
+        el.sequenceSlots.appendChild(slot);
+
+        if (isWatchingNow || isNextTarget) {
+          slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    }
+
+    function playSequencePattern() {
+      if (!state.sequence.length) return;
+      cancelRunningWork();
+      const myRun = state.runId;
+
+      state.phase = 'watching';
+      state.recallIndex = 0;
+      el.btnNextLevel.classList.add('hidden');
+      el.btnReplay.disabled = false;
+
+      clearSpotlight(true);
+      renderSequenceRail(-1);
+      setBanner({
+        badge: 'Watch & Read',
+        badgeClass: 'bg-amber-100 text-amber-800',
+        word: 'GET READY...',
+        speakableWord: '',
+      });
+
+      const timing = SPEED_MS[state.speed] || SPEED_MS.normal;
+
+      function runStep(idx) {
+        if (myRun !== state.runId || state.mode !== 'memory') return;
+
+        if (idx >= state.sequence.length) {
+          // Switch to Blind-Click Recall Phase
+          state.phase = 'recalling';
+          state.recallIndex = 0;
+          clearSpotlight(false);
+          hideCapybara();
+          renderSequenceRail(-1);
+          setBanner({
+            badge: `Your Turn! (${state.sequence.length} Rooms)`,
+            badgeClass: 'bg-indigo-100 text-indigo-700',
+            word: 'YOUR TURN!',
+            speakableWord: '',
+          });
+          return;
+        }
+
+        const roomId = state.sequence[idx];
+        const room = getRoomById(roomId);
+        if (!room) {
+          runStep(idx + 1);
+          return;
+        }
+
+        renderSequenceRail(idx);
+        spotlightRoom(roomId, {
+          dimBackground: true,
+          showFloatingWord: true,
+          hideWord: false,
+          playPop: true,
+          triggerAutoSpeak: true,
+        });
+        setBanner({
+          badge: `Watch & Read (${idx + 1}/${state.sequence.length})`,
+          badgeClass: 'bg-amber-400 text-slate-900',
+          word: room.name,
+          speakableWord: room.name,
+        });
+
+        safeTimeout(() => {
+          if (myRun !== state.runId || state.mode !== 'memory') return;
+          clearSpotlight(true);
+          safeTimeout(() => runStep(idx + 1), timing.gap);
+        }, timing.lit);
+      }
+
+      safeTimeout(() => runStep(0), 450);
+    }
+
+    function startMemoryGame(nextLevel = false) {
+      cancelRunningWork();
+      if (state.rooms.length < 2) {
+        setBanner({
+          badge: 'Setup Needed',
+          badgeClass: 'bg-rose-100 text-rose-700',
+          word: 'ADD 2+ ROOMS',
+          speakableWord: '',
+        });
+        return;
+      }
+
+      if (nextLevel) {
+        state.level += 1;
+      } else {
+        state.level = 1;
+        state.score = 0;
+      }
+
+      const len = state.startLength + (state.level - 1);
+      state.sequence = generateSequence(len);
+      el.btnStartIcon.textContent = '↻';
+      el.btnStartLabel.textContent = 'Restart';
+
+      playSequencePattern();
+    }
+
+    function handleMemoryTap(roomId) {
+      if (state.phase !== 'recalling') return;
+
+      clearHintBorder();
+      const expectedId = state.sequence[state.recallIndex];
+      const tappedRoom = getRoomById(roomId);
+      if (!tappedRoom) return;
+
+      if (roomId === expectedId) {
+        state.recallIndex += 1;
+        state.score += 10;
+
+        spotlightRoom(roomId, {
+          dimBackground: true,
+          showFloatingWord: true,
+          hideWord: false,
+          playPop: false,
+          triggerAutoSpeak: true,
+        });
+
+        if (state.recallIndex >= state.sequence.length) {
+          state.phase = 'won';
+          state.score += 25;
+          SoundFX.victory();
+          launchConfetti();
+          renderSequenceRail(-1);
+          el.btnNextLevel.classList.remove('hidden');
+
+          setBanner({
+            badge: 'Level Complete! 🎉',
+            badgeClass: 'bg-emerald-500 text-white',
+            word: tappedRoom.name,
+            speakableWord: tappedRoom.name,
+          });
+        } else {
+          SoundFX.success();
+          renderSequenceRail(-1);
+          setBanner({
+            badge: `Great! Next: #${state.recallIndex + 1}`,
+            badgeClass: 'bg-emerald-100 text-emerald-700',
+            word: tappedRoom.name,
+            speakableWord: tappedRoom.name,
+          });
+        }
+      } else {
+        // Gentle buzz + brief red hint border on expected room
+        SoundFX.error();
+        el.houseStage.classList.remove('animate-shake');
+        void el.houseStage.offsetWidth;
+        el.houseStage.classList.add('animate-shake');
+
+        const expectedRoom = getRoomById(expectedId);
+        flashExpectedRoomHint(expectedRoom);
+
+        setBanner({
+          badge: 'Try Again!',
+          badgeClass: 'bg-rose-100 text-rose-700',
+          word: `FIND ROOM #${state.recallIndex + 1}`,
+          speakableWord: '',
+        });
+      }
+    }
+
+    // =========================================================================
+    // 10. SPOTLIGHT MODE (Full-Width House + Floating Bottom Pill Dock)
+    // =========================================================================
+    function handleSpotlightTap(roomId) {
+      const room = getRoomById(roomId);
+      if (!room) return;
+
+      const hideWord = state.quizMode;
+      state.wordRevealed = !hideWord;
+
+      spotlightRoom(roomId, {
+        dimBackground: true,
+        showFloatingWord: true,
+        hideWord: hideWord,
+        playPop: true,
+        triggerAutoSpeak: !hideWord,
+      });
+
+      if (hideWord) {
+        el.btnDockReveal.classList.remove('hidden');
+        setBanner({
+          badge: 'Quiz Mode',
+          badgeClass: 'bg-amber-400 text-slate-900',
+          word: '? ? ?',
+          speakableWord: '',
+        });
+      } else {
+        el.btnDockReveal.classList.add('hidden');
+        setBanner({
+          badge: 'Spotlight',
+          badgeClass: 'bg-sky-100 text-sky-700',
+          word: room.name,
+          speakableWord: room.name,
+        });
+      }
+    }
+
+    function revealSpotlightWord() {
+      if (state.mode !== 'spotlight' || !state.activeRoomId || state.wordRevealed) return;
+      const room = getRoomById(state.activeRoomId);
+      if (!room) return;
+
+      state.wordRevealed = true;
+      SoundFX.success();
+      el.btnDockReveal.classList.add('hidden');
+
+      const topPos = getRoomTopCenter(room.points);
+      el.floatingWordPill.textContent = room.name;
+      el.floatingWordPill.style.left = `${topPos.x}%`;
+      el.floatingWordPill.style.top = `${topPos.y}%`;
+      el.floatingWordPill.classList.remove('hidden');
+
+      setBanner({
+        badge: 'Revealed!',
+        badgeClass: 'bg-emerald-100 text-emerald-700',
+        word: room.name,
+        speakableWord: room.name,
+      });
+
+      if (state.autoSpeak) speakWord(room.name);
+    }
+
+    function handleRoomTap(roomId) {
+      if (state.mode === 'memory') {
+        handleMemoryTap(roomId);
+      } else {
+        handleSpotlightTap(roomId);
+      }
+    }
+
+    // =========================================================================
+    // 11. MODE SWITCHING
+    // =========================================================================
+    function switchMode(newMode) {
+      cancelRunningWork();
+      state.mode = newMode;
+      state.phase = 'idle';
+      clearSpotlight(false);
+      hideCapybara();
+
+      el.modeTabs.forEach(tab => {
+        const active = tab.dataset.mode === newMode;
+        tab.className = active
+          ? 'mode-tab btn-tap px-3.5 sm:px-4 py-1.5 rounded-xl font-display font-bold text-sm sm:text-base transition-all bg-sky-500 text-white shadow-sm'
+          : 'mode-tab btn-tap px-3.5 sm:px-4 py-1.5 rounded-xl font-display font-bold text-sm sm:text-base transition-all text-slate-600 hover:text-slate-900';
+      });
+
+      const isMemory = newMode === 'memory';
+      el.sequenceRail.classList.toggle('hidden', !isMemory);
+      el.btnStart.classList.toggle('hidden', !isMemory);
+      el.btnReplay.classList.toggle('hidden', !isMemory);
+      el.spotlightDock.classList.toggle('hidden', isMemory);
+
+      if (isMemory) {
+        el.btnNextLevel.classList.add('hidden');
+        el.btnReplay.disabled = state.sequence.length === 0;
+        renderSequenceRail(-1);
+        setBanner({
+          badge: 'Memory Mode',
+          badgeClass: 'bg-sky-100 text-sky-700',
+          word: 'PRESS START',
+          speakableWord: '',
+        });
+      } else {
+        el.btnDockReveal.classList.add('hidden');
+        setBanner({
+          badge: state.quizMode ? 'Quiz Mode' : 'Spotlight',
+          badgeClass: state.quizMode ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700',
+          word: 'TAP ANY ROOM',
+          speakableWord: '',
+        });
+      }
+
+      // Recalculate stage size immediately after rail collapses/expands
+      requestAnimationFrame(fitAllStages);
+    }
+
+    // =========================================================================
+    // 12. SLIDE-OVER SETTINGS DRAWER
+    // =========================================================================
+    function openSettingsDrawer() {
+      el.settingsBackdrop.classList.remove('hidden');
+      el.settingsDrawer.classList.remove('drawer-closed');
+    }
+
+    function closeSettingsDrawer() {
+      el.settingsDrawer.classList.add('drawer-closed');
+      el.settingsBackdrop.classList.add('hidden');
+    }
+
+    // =========================================================================
+    // 13. CUSTOM FLOORPLAN & ROOM HOTSPOT EDITOR MODAL
+    // =========================================================================
+    function showEditorStatus(msg, isError = false) {
+      el.editorStatus.textContent = msg;
+      el.editorStatus.className = `text-xs font-bold px-2.5 py-1.5 rounded-xl ${isError ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`;
+      el.editorStatus.classList.remove('hidden');
+      safeTimeout(() => el.editorStatus.classList.add('hidden'), 3000);
+    }
+
+    function syncEditorBackground() {
+      if (state.customImageDataUrl) {
+        el.editorBgDefault.classList.add('hidden');
+        el.editorBgCustom.src = state.customImageDataUrl;
+        el.editorBgCustom.classList.remove('hidden');
+      } else {
+        el.editorBgCustom.classList.add('hidden');
+        el.editorBgDefault.classList.remove('hidden');
+        if (!el.editorBgDefault.hasChildNodes()) {
+          const clone = el.defaultHouseSvg.cloneNode(true);
+          clone.removeAttribute('id');
+          clone.classList.remove('hidden');
+          el.editorBgDefault.appendChild(clone);
+        }
+      }
+      fitAllStages();
+    }
+
+    function renderEditorSvg() {
+      el.editorSvg.innerHTML = '';
+      el.editorPointsBadge.textContent = `${state.draftPoints.length} pt${state.draftPoints.length === 1 ? '' : 's'}`;
+
+      state.rooms.forEach((room, idx) => {
+        const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        poly.setAttribute('points', pointsToSvgString(room.points));
+        poly.setAttribute('fill', room.color || ROOM_PALETTE[idx % ROOM_PALETTE.length]);
+        poly.setAttribute('fill-opacity', '0.28');
+        poly.setAttribute('stroke', room.color || '#0284c7');
+        poly.setAttribute('stroke-width', '0.55');
+        el.editorSvg.appendChild(poly);
+
+        const c = getRoomCentroid(room.points);
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', c.x);
+        label.setAttribute('y', c.y);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('dominant-baseline', 'middle');
+        label.setAttribute('fill', '#0f172a');
+        label.setAttribute('stroke', '#ffffff');
+        label.setAttribute('stroke-width', '0.6');
+        label.setAttribute('paint-order', 'stroke');
+        label.setAttribute('font-size', '3.1');
+        label.setAttribute('font-weight', '800');
+        label.setAttribute('font-family', 'Fredoka, sans-serif');
+        label.textContent = room.name;
+        el.editorSvg.appendChild(label);
+      });
+
+      if (state.draftPoints.length > 0) {
+        const ptsStr = pointsToSvgString(state.draftPoints);
+        if (state.draftPoints.length >= 3) {
+          const draftPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          draftPoly.setAttribute('points', ptsStr);
+          draftPoly.setAttribute('fill', 'rgba(251, 191, 36, 0.35)');
+          draftPoly.setAttribute('stroke', '#f59e0b');
+          draftPoly.setAttribute('stroke-width', '0.65');
+          draftPoly.setAttribute('stroke-dasharray', '1.4,0.8');
+          el.editorSvg.appendChild(draftPoly);
+        } else if (state.draftPoints.length === 2) {
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+          line.setAttribute('points', ptsStr);
+          line.setAttribute('fill', 'none');
+          line.setAttribute('stroke', '#f59e0b');
+          line.setAttribute('stroke-width', '0.65');
+          el.editorSvg.appendChild(line);
+        }
+
+        state.draftPoints.forEach(([x, y], i) => {
+          const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          dot.setAttribute('cx', x);
+          dot.setAttribute('cy', y);
+          dot.setAttribute('r', i === 0 ? '1.4' : '1.0');
+          dot.setAttribute('fill', i === 0 ? '#10b981' : '#fbbf24');
+          dot.setAttribute('stroke', '#0f172a');
+          dot.setAttribute('stroke-width', '0.3');
+          el.editorSvg.appendChild(dot);
+        });
+      }
+    }
+
+    function renderEditorRoomsList() {
+      el.editorRoomCount.textContent = state.rooms.length;
+      el.editorRoomsList.innerHTML = '';
+
+      if (!state.rooms.length) {
+        el.editorRoomsList.innerHTML = '<div class="text-xs font-bold text-slate-400 text-center py-4">Click corners on the image to trace rooms.</div>';
+        return;
+      }
+
+      state.rooms.forEach(room => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 border border-slate-200';
+        row.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-3 h-3 rounded-full shrink-0" style="background:${room.color || '#0ea5e9'}"></span>
+            <span class="font-display font-bold text-sm text-slate-800 truncate">${room.name}</span>
+          </div>
+          <button type="button" class="text-xs font-extrabold text-rose-500 hover:text-rose-700 px-2 py-1 rounded-lg hover:bg-rose-50">
+            Delete
+          </button>
+        `;
+        row.querySelector('button').addEventListener('click', () => {
+          state.rooms = state.rooms.filter(r => r.id !== room.id);
+          state.sequence = [];
+          saveCustomData();
+          renderEditorRoomsList();
+          renderEditorSvg();
+          renderRoomHitboxes();
+        });
+        el.editorRoomsList.appendChild(row);
+      });
+    }
+
+    function openEditorModal() {
+      cancelRunningWork();
+      closeSettingsDrawer();
+      state.editorOpen = true;
+      state.draftPoints = [];
+      el.editorModal.classList.remove('hidden');
+      syncEditorBackground();
+      renderEditorRoomsList();
+      renderEditorSvg();
+      requestAnimationFrame(fitAllStages);
+    }
+
+    function closeEditorModal() {
+      state.editorOpen = false;
+      state.draftPoints = [];
+      el.editorModal.classList.add('hidden');
+      renderStageBackground();
+      renderRoomHitboxes();
+      switchMode(state.mode);
+    }
+
+    function handleEditorSvgClick(evt) {
+      const rect = el.editorSvg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = Math.max(0, Math.min(100, ((evt.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(0, Math.min(100, ((evt.clientY - rect.top) / rect.height) * 100));
+
+      if (state.draftPoints.length >= 3) {
+        const [fx, fy] = state.draftPoints[0];
+        if (Math.hypot(x - fx, y - fy) < 2.5) {
+          SoundFX.pop();
+          el.inputRoomName.focus();
+          showEditorStatus('Polygon closed! Enter a room name and click Save Room.');
+          return;
+        }
+      }
+
+      state.draftPoints.push([Number(x.toFixed(2)), Number(y.toFixed(2))]);
+      SoundFX.pop();
+      renderEditorSvg();
+    }
+
+    function saveDraftRoom() {
+      const name = el.inputRoomName.value.trim().toUpperCase();
+      if (state.draftPoints.length < 3) {
+        showEditorStatus('Click at least 3 corners on the image first.', true);
+        return;
+      }
+      if (!name) {
+        showEditorStatus('Please type a room name first.', true);
+        el.inputRoomName.focus();
+        return;
+      }
+
+      state.rooms.push({
+        id: 'room-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        name,
+        color: ROOM_PALETTE[state.rooms.length % ROOM_PALETTE.length],
+        points: [...state.draftPoints],
+      });
+      state.draftPoints = [];
+      state.sequence = [];
+      el.inputRoomName.value = '';
+      SoundFX.success();
+
+      saveCustomData();
+      renderEditorRoomsList();
+      renderEditorSvg();
+      renderRoomHitboxes();
+      showEditorStatus(`Saved "${name}"!`);
+    }
+
+    function handleCustomImageUpload(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 1280;
+          let w = img.naturalWidth || 1000;
+          let h = img.naturalHeight || 680;
+          if (w > MAX || h > MAX) {
+            const s = MAX / Math.max(w, h);
+            w = Math.round(w * s);
+            h = Math.round(h * s);
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+          state.customImageDataUrl = canvas.toDataURL('image/jpeg', 0.84);
+          state.aspectRatio = w / h;
+          state.rooms = [];
+          state.draftPoints = [];
+          state.sequence = [];
+
+          saveCustomData();
+          syncEditorBackground();
+          renderStageBackground();
+          renderEditorRoomsList();
+          renderEditorSvg();
+          renderRoomHitboxes();
+          showEditorStatus('Image uploaded! Click corners to trace each room.');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetToBuiltInHouse() {
+      state.customImageDataUrl = null;
+      state.aspectRatio = 1000 / 680;
+      state.rooms = JSON.parse(JSON.stringify(DEFAULT_ROOMS));
+      state.draftPoints = [];
+      state.sequence = [];
+      try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+
+      syncEditorBackground();
+      renderStageBackground();
+      renderEditorRoomsList();
+      renderEditorSvg();
+      renderRoomHitboxes();
+      showEditorStatus('Restored built-in 5-room illustrated house!');
+    }
+
+    // =========================================================================
+    // 14. LOCALSTORAGE PERSISTENCE
+    // =========================================================================
+    function saveCustomData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          rooms: state.rooms,
+          customImageDataUrl: state.customImageDataUrl,
+          aspectRatio: state.aspectRatio,
+        }));
+      } catch (_) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            rooms: state.rooms,
+            customImageDataUrl: null,
+            aspectRatio: 1000 / 680,
+          }));
+        } catch (_) {}
+      }
+    }
+
+    function loadCustomData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.rooms) && parsed.rooms.length > 0) {
+          state.rooms = parsed.rooms;
+        }
+        if (parsed && parsed.customImageDataUrl) {
+          state.customImageDataUrl = parsed.customImageDataUrl;
+          state.aspectRatio = parsed.aspectRatio || (16 / 10);
+        }
+      } catch (_) {}
+    }
+
+    // =========================================================================
+    // 15. CELEBRATORY CONFETTI ANIMATION
+    // =========================================================================
+    let confettiParticles = [];
+    let confettiRaf = null;
+
+    function launchConfetti() {
+      try {
+        const canvas = el.confettiCanvas;
+        const rect = el.houseStage.getBoundingClientRect();
+        canvas.width = Math.max(1, rect.width);
+        canvas.height = Math.max(1, rect.height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const colors = ['#fbbf24', '#38bdf8', '#f43f5e', '#34d399', '#a78bfa', '#fb923c'];
+        confettiParticles = Array.from({ length: 85 }, () => ({
+          x: canvas.width * (0.2 + Math.random() * 0.6),
+          y: canvas.height * 0.32,
+          vx: (Math.random() - 0.5) * 12,
+          vy: -Math.random() * 10 - 3,
+          size: 7 + Math.random() * 8,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          rot: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 0.25,
+          life: 1,
+        }));
+
+        if (confettiRaf) cancelAnimationFrame(confettiRaf);
+
+        function tick() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          let alive = false;
+          confettiParticles.forEach(p => {
+            if (p.life <= 0) return;
+            alive = true;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.28;
+            p.rot += p.vRot;
+            p.life -= 0.015;
+            ctx.save();
+            ctx.globalAlpha = Math.max(0, p.life);
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+            ctx.restore();
+          });
+          if (alive) {
+            confettiRaf = requestAnimationFrame(tick);
+          } else {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            confettiRaf = null;
+          }
+        }
+        confettiRaf = requestAnimationFrame(tick);
+      } catch (_) {}
+    }
+
+    // =========================================================================
+    // 16. FULLSCREEN & EVENT BINDINGS
+    // =========================================================================
+    function toggleFullscreen() {
+      try {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
+      } catch (_) {}
+    }
+
+    function syncFullscreenIcons() {
+      const isFs = Boolean(document.fullscreenElement);
+      el.iconFsEnter.classList.toggle('hidden', isFs);
+      el.iconFsExit.classList.toggle('hidden', !isFs);
+      requestAnimationFrame(fitAllStages);
+    }
+
+    function bindEvents() {
+      // Top Header Controls
+      el.modeTabs.forEach(tab => {
+        tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+      });
+      el.btnHeaderSpeak.addEventListener('click', () => speakWord(state.currentSpeakWord));
+      el.btnStart.addEventListener('click', () => startMemoryGame(false));
+      el.btnReplay.addEventListener('click', () => {
+        if (state.sequence.length) playSequencePattern();
+      });
+      el.btnNextLevel.addEventListener('click', () => startMemoryGame(true));
+      el.btnFullscreen.addEventListener('click', toggleFullscreen);
+      document.addEventListener('fullscreenchange', syncFullscreenIcons);
+
+      // Spotlight Bottom Floating Dock
+      el.btnDockReveal.addEventListener('click', revealSpotlightWord);
+      el.btnDockSpeak.addEventListener('click', () => speakWord(state.currentSpeakWord));
+      el.btnDockClear.addEventListener('click', () => {
+        clearSpotlight(false);
+        hideCapybara();
+        el.btnDockReveal.classList.add('hidden');
+        setBanner({
+          badge: state.quizMode ? 'Quiz Mode' : 'Spotlight',
+          badgeClass: state.quizMode ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700',
+          word: 'TAP ANY ROOM',
+          speakableWord: '',
+        });
+      });
+
+      // Settings Drawer
+      el.btnOpenSettings.addEventListener('click', openSettingsDrawer);
+      el.btnCloseSettings.addEventListener('click', closeSettingsDrawer);
+      el.settingsBackdrop.addEventListener('click', closeSettingsDrawer);
+
+      document.querySelectorAll('.len-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.startLength = Number(btn.dataset.len);
+          document.querySelectorAll('.len-btn').forEach(b => {
+            const active = Number(b.dataset.len) === state.startLength;
+            b.className = active
+              ? 'len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-sky-500 bg-sky-500 text-white'
+              : 'len-btn btn-tap py-2 rounded-xl font-display font-bold text-base border-2 border-slate-200 text-slate-600';
+          });
+        });
+      });
+
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.speed = btn.dataset.speed;
+          document.querySelectorAll('.speed-btn').forEach(b => {
+            const active = b.dataset.speed === state.speed;
+            b.className = active
+              ? 'speed-btn btn-tap py-2 rounded-xl text-sm font-extrabold bg-white text-sky-600 shadow-sm'
+              : 'speed-btn btn-tap py-2 rounded-xl text-sm font-extrabold text-slate-600';
+          });
+        });
+      });
+
+      el.chkCapybara.addEventListener('change', (e) => {
+        state.showCapybara = e.target.checked;
+        if (!state.showCapybara) {
+          hideCapybara();
+        } else if (state.activeRoomId) {
+          moveCapybaraToRoom(getRoomById(state.activeRoomId));
+        }
+      });
+
+      el.chkAutoSpeak.addEventListener('change', (e) => {
+        state.autoSpeak = e.target.checked;
+      });
+
+      el.chkSfx.addEventListener('change', (e) => {
+        state.sfxEnabled = e.target.checked;
+      });
+
+      el.chkQuizMode.addEventListener('change', (e) => {
+        state.quizMode = e.target.checked;
+        if (state.mode === 'spotlight') {
+          if (state.activeRoomId) {
+            handleSpotlightTap(state.activeRoomId);
+          } else {
+            setBanner({
+              badge: state.quizMode ? 'Quiz Mode' : 'Spotlight',
+              badgeClass: state.quizMode ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-700',
+              word: 'TAP ANY ROOM',
+              speakableWord: '',
+            });
+          }
+        }
+      });
+
+      // Custom Editor Modal
+      el.btnOpenEditor.addEventListener('click', openEditorModal);
+      el.btnCloseEditor.addEventListener('click', closeEditorModal);
+      el.editorSvg.addEventListener('click', handleEditorSvgClick);
+      el.inputCustomImage.addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (file) handleCustomImageUpload(file);
+        e.target.value = '';
+      });
+      el.btnUndoPoint.addEventListener('click', () => {
+        state.draftPoints.pop();
+        renderEditorSvg();
+      });
+      el.btnClearDraft.addEventListener('click', () => {
+        state.draftPoints = [];
+        renderEditorSvg();
+      });
+      el.btnSaveRoom.addEventListener('click', saveDraftRoom);
+      el.inputRoomName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') saveDraftRoom();
+      });
+      el.btnResetHouse.addEventListener('click', resetToBuiltInHouse);
+
+      // Keyboard Shortcuts (Spacebar to Reveal in Spotlight Quiz Mode, Escape to close overlays)
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && document.activeElement && document.activeElement.tagName !== 'INPUT') {
+          if (state.mode === 'spotlight' && state.quizMode && state.activeRoomId && !state.wordRevealed) {
+            e.preventDefault();
+            revealSpotlightWord();
+          }
+        } else if (e.code === 'Escape') {
+          if (state.editorOpen) closeEditorModal();
+          else closeSettingsDrawer();
+        }
+      });
+
+      window.addEventListener('resize', fitAllStages);
+
+      try {
+        if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+      } catch (_) {}
+    }
+
+    // Boot Application
+    window.addEventListener('DOMContentLoaded', () => {
+      loadCustomData();
+      bindEvents();
+      renderStageBackground();
+      renderRoomHitboxes();
+      switchMode('memory');
+      fitAllStages();
+    });
+  </script>
+</body>
+</html>
